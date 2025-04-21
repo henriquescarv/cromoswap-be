@@ -3,7 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const User = require('./db.js');
+const { User } = require('./db.js');
 
 const app = express();
 const PORT = 3000;
@@ -12,9 +12,8 @@ const SECRET_KEY = 'your_secret_key';
 app.use(bodyParser.json());
 app.use(cors());
 
-// Rota de registro
 app.post('/register', async (req, res) => {
-    const { username, email, password } = req.body;
+    const { username, email, password, countryState, city } = req.body;
     try {
         const user = await User.findOne({ where: { username } });
         const emailExists = await User.findOne({ where: { email } });
@@ -29,8 +28,9 @@ app.post('/register', async (req, res) => {
             return;
         }
         const hashedPassword = bcrypt.hashSync(password, 8);
-        await User.create({ username, email, password: hashedPassword });
-        res.status(201).json({ message: 'User registered successfully' });
+        const newUser = await User.create({ username, email, password: hashedPassword, countryState, city });
+        const token = jwt.sign({ id: newUser.username }, SECRET_KEY, { expiresIn: '1h' });
+        res.status(201).json({ message: 'User registered successfully', token });
     } catch (error) {
         console.log(error);
         res.status(400).json({ message: 'Error registering user', error });
@@ -76,6 +76,45 @@ const authenticate = (req, res, next) => {
         next();
     });
 };
+
+// Rota autenticada para pegar dados do usuário (nome, email, estado e cidade)
+app.get('/summary', authenticate, async (req, res) => {
+    try {
+        const user = await User.findOne({
+            where: { username: req.userId },
+            attributes: ['username', 'email', 'countryState', 'city'],
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json(user);
+    } catch (error) {
+        console.error('Error fetching user data:', error);
+        res.status(500).json({ message: 'Error fetching user data', error });
+    }
+});
+
+// Rota autenticada para atualizar o estado e a cidade do usuário
+app.post('/region', authenticate, async (req, res) => {
+    const { countryState, city } = req.body;
+
+    try {
+        const user = await User.findOne({ where: { username: req.userId } });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        await User.update({ countryState, city }, { where: { username: req.userId } });
+
+        res.status(200).json({ message: 'Region updated successfully' });
+    } catch (error) {
+        console.error('Error updating region:', error);
+        res.status(500).json({ message: 'Error updating region', error });
+    }
+});
 
 // Rota protegida
 app.get('/protected', authenticate, (req, res) => {

@@ -7,11 +7,6 @@ const sequelize = new Sequelize('cromoswap-db', 'postgres', 'EuOdeioCocoRalado',
 });
 
 const User = sequelize.define('User', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
-    },
     username: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -25,15 +20,20 @@ const User = sequelize.define('User', {
     password: {
         type: DataTypes.STRING,
         allowNull: false
-    }
+    },
+    countryState: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: false
+    },
+    city: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: false
+    },
 });
 
 const AlbumTemplate = sequelize.define('AlbumTemplate', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
-    },
     name: {
         type: DataTypes.STRING,
         allowNull: false
@@ -46,20 +46,9 @@ const AlbumTemplate = sequelize.define('AlbumTemplate', {
     }
 });
 
-const UserAlbum = sequelize.define('UserAlbum', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
-    }
-});
+const UserAlbum = sequelize.define('UserAlbum', {});
 
-const Sticker = sequelize.define('Sticker', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
-    },
+const TemplateSticker = sequelize.define('TemplateSticker', {
     name: {
         type: DataTypes.STRING,
         allowNull: false
@@ -67,18 +56,19 @@ const Sticker = sequelize.define('Sticker', {
     category: {
         type: DataTypes.STRING
     },
-    quantity: {
-        type: DataTypes.INTEGER,
-        defaultValue: 1
+    tags: {
+        type: DataTypes.ARRAY(DataTypes.STRING)
     }
 });
 
-const Message = sequelize.define('Message', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
+const UserSticker = sequelize.define('UserSticker', {
+    quantity: {
+        type: DataTypes.INTEGER,
+        defaultValue: 1
     },
+});
+
+const Message = sequelize.define('Message', {
     content: {
         type: DataTypes.TEXT,
         allowNull: false
@@ -94,11 +84,6 @@ const Message = sequelize.define('Message', {
 });
 
 const Notification = sequelize.define('Notification', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
-    },
     type: {
         type: DataTypes.STRING,
         allowNull: false
@@ -114,11 +99,6 @@ const Notification = sequelize.define('Notification', {
 });
 
 const Friendship = sequelize.define('Friendship', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true
-    },
     status: {
         type: DataTypes.ENUM('pending', 'accepted', 'declined'),
         allowNull: false,
@@ -126,15 +106,16 @@ const Friendship = sequelize.define('Friendship', {
     }
 });
 
-// Definição de relacionamentos
 User.hasMany(UserAlbum, { foreignKey: 'userId', onDelete: 'CASCADE' });
 UserAlbum.belongsTo(User, { foreignKey: 'userId' });
 
 AlbumTemplate.hasMany(UserAlbum, { foreignKey: 'albumTemplateId', onDelete: 'CASCADE' });
 UserAlbum.belongsTo(AlbumTemplate, { foreignKey: 'albumTemplateId' });
 
-UserAlbum.hasMany(Sticker, { foreignKey: 'userAlbumId', onDelete: 'CASCADE' });
-Sticker.belongsTo(UserAlbum, { foreignKey: 'userAlbumId' });
+TemplateSticker.belongsTo(AlbumTemplate, { foreignKey: 'albumTemplateId' });
+
+UserSticker.belongsTo(UserAlbum, { foreignKey: 'userAlbumId' });
+UserSticker.belongsTo(TemplateSticker, { foreignKey: 'templateStickerId' });
 
 User.hasMany(Message, { foreignKey: 'senderId', as: 'sentMessages', onDelete: 'CASCADE' });
 User.hasMany(Message, { foreignKey: 'receiverId', as: 'receivedMessages', onDelete: 'CASCADE' });
@@ -146,9 +127,8 @@ Notification.belongsTo(User, { foreignKey: 'userId' });
 
 User.belongsToMany(User, { through: Friendship, as: 'Friends', foreignKey: 'userId1', otherKey: 'userId2' });
 
-// Sincronizar o banco de dados
 sequelize.sync({ alter: true })
     .then(() => console.log('Database & tables created!'))
     .catch(err => console.error('Unable to create database & tables:', err));
 
-module.exports = { User, AlbumTemplate, UserAlbum, Sticker, Message, Notification, Friendship, sequelize };
+module.exports = { User, AlbumTemplate, UserAlbum, TemplateSticker, UserSticker, Message, Notification, Friendship, sequelize };

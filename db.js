@@ -49,7 +49,11 @@ const AlbumTemplate = sequelize.define('AlbumTemplate', {
 const UserAlbum = sequelize.define('UserAlbum', {});
 
 const TemplateSticker = sequelize.define('TemplateSticker', {
-    name: {
+    order: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+    },
+    number: {
         type: DataTypes.STRING,
         allowNull: false
     },

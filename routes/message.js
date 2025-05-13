@@ -25,7 +25,7 @@ const authenticate = (req, res, next) => {
     });
 };
 
-// GET /messages/:otherUserId - histórico de mensagens entre o autenticado e outro usuário
+// GET /messages/:otherUserId - histórico de mensagens entre o autenticado e outro usuário, incluindo dados do outro usuário
 router.get('/messages/:otherUserId', authenticate, async (req, res) => {
     try {
         const { otherUserId } = req.params;
@@ -37,13 +37,15 @@ router.get('/messages/:otherUserId', authenticate, async (req, res) => {
         }
         // Permite buscar por id numérico ou username
         let targetUserId;
+        let otherUser = null;
         if (/^\d+$/.test(otherUserId)) {
             targetUserId = Number(otherUserId);
+            otherUser = await User.findOne({ where: { id: targetUserId }, attributes: ['id', 'username', 'email', 'countryState', 'city'] });
         } else {
-            const user = await User.findOne({ where: { username: otherUserId }, attributes: ['id'] });
-            targetUserId = user?.id;
+            otherUser = await User.findOne({ where: { username: otherUserId }, attributes: ['id', 'username', 'email', 'countryState', 'city'] });
+            targetUserId = otherUser?.id;
         }
-        if (!targetUserId) {
+        if (!targetUserId || !otherUser) {
             return res.status(404).json({ message: 'User not found' });
         }
         const messages = await Message.findAll({
@@ -55,38 +57,49 @@ router.get('/messages/:otherUserId', authenticate, async (req, res) => {
             },
             order: [['createdAt', 'ASC']]
         });
-        res.status(200).json(messages);
+        res.status(200).json({
+            messages,
+            otherUser
+        });
     } catch (error) {
         console.error('Error fetching messages:', error);
         res.status(500).json({ message: 'Error fetching messages', error });
     }
 });
 
-router.post('/messages/mark-all-seen', authenticate, async (req, res) => {
-  try {
-      let myUserId = req.userId;
-      if (typeof myUserId !== 'number') {
-          const me = await User.findOne({ where: { username: req.userId }, attributes: ['id'] });
-          myUserId = me?.id;
-      }
-      if (!myUserId) {
-          return res.status(404).json({ message: 'User not found' });
-      }
-
-      // Atualiza todas as mensagens recebidas pelo usuário para seen = true
-      await Message.update(
-          { seen: true },
-          { where: { receiverId: myUserId, seen: false } }
-      );
-
-      res.status(200).json({ message: 'All received messages marked as seen' });
-  } catch (error) {
-      console.error('Error marking messages as seen:', error);
-      res.status(500).json({ message: 'Error marking messages as seen', error });
-  }
+// Endpoint para marcar como seen = true apenas as mensagens recebidas de um usuário específico
+router.post('/messages/mark-seen/:otherUserId', authenticate, async (req, res) => {
+    try {
+        const { otherUserId } = req.params;
+        let myUserId = req.userId;
+        if (typeof myUserId !== 'number') {
+            const me = await User.findOne({ where: { username: req.userId }, attributes: ['id'] });
+            myUserId = me?.id;
+        }
+        // Permite buscar por id numérico ou username
+        let senderId;
+        if (/^\d+$/.test(otherUserId)) {
+            senderId = Number(otherUserId);
+        } else {
+            const user = await User.findOne({ where: { username: otherUserId }, attributes: ['id'] });
+            senderId = user?.id;
+        }
+        if (!senderId) {
+            return res.status(404).json({ message: 'Other user not found' });
+        }
+        // Marca como seen = true apenas as mensagens recebidas desse usuário
+        await Message.update(
+            { seen: true },
+            { where: { receiverId: myUserId, senderId, seen: false } }
+        );
+        res.status(200).json({ message: 'Messages from this user marked as seen' });
+    } catch (error) {
+        console.error('Error marking messages as seen:', error);
+        res.status(500).json({ message: 'Error marking messages as seen', error });
+    }
 });
 
-router.get('/last-received-messages', authenticate, async (req, res) => {
+router.get('/last-messages', authenticate, async (req, res) => {
   try {
       let myUserId = req.userId;
       if (typeof myUserId !== 'number') {
@@ -97,33 +110,55 @@ router.get('/last-received-messages', authenticate, async (req, res) => {
           return res.status(404).json({ message: 'User not found' });
       }
 
-      // Busca todos os senderIds que já enviaram mensagem para o usuário autenticado
-      const senders = await Message.findAll({
+      // Busca todos os userIds distintos que já trocaram mensagem com o usuário autenticado
+      const sent = await Message.findAll({
+          where: { senderId: myUserId },
+          attributes: ['receiverId'],
+          group: ['receiverId']
+      });
+      const received = await Message.findAll({
           where: { receiverId: myUserId },
           attributes: ['senderId'],
           group: ['senderId']
       });
-      const senderIds = senders.map(s => s.senderId);
 
-      // Para cada senderId, busca a última mensagem recebida desse usuário
-      const lastMessages = await Promise.all(senderIds.map(async senderId => {
+      // Junta todos os userIds distintos (exceto o próprio)
+      const userIdsSet = new Set([
+          ...sent.map(s => s.receiverId),
+          ...received.map(r => r.senderId)
+      ]);
+      userIdsSet.delete(myUserId);
+      const userIds = Array.from(userIdsSet);
+
+      // Para cada userId, busca a última mensagem trocada (enviada ou recebida) e dados do usuário
+      const lastMessages = await Promise.all(userIds.map(async otherUserId => {
           const lastMessage = await Message.findOne({
-              where: { receiverId: myUserId, senderId },
+              where: {
+                  [Op.or]: [
+                      { senderId: myUserId, receiverId: otherUserId },
+                      { senderId: otherUserId, receiverId: myUserId }
+                  ]
+              },
               order: [['createdAt', 'DESC']]
           });
           if (!lastMessage) return null;
-          // Busca dados do remetente
-          const senderUser = await User.findOne({
-              where: { id: senderId },
+          // Busca dados do outro usuário
+          const otherUser = await User.findOne({
+              where: { id: otherUserId },
               attributes: ['id', 'username', 'email', 'countryState', 'city']
+          });
+          // Conta mensagens não lidas desse usuário para o autenticado
+          const unreadMessages = await Message.count({
+              where: { receiverId: myUserId, senderId: otherUserId, seen: false }
           });
           return {
               ...lastMessage.toJSON(),
-              senderUser
+              otherUser,
+              unreadMessages
           };
       }));
 
-      // Remove nulos (caso algum sender não tenha mensagem)
+      // Remove nulos (caso algum user não tenha mensagem)
       const filtered = lastMessages.filter(m => m);
 
       res.status(200).json(filtered);

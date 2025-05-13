@@ -560,16 +560,26 @@ router.post('/follows/:userId', authenticate, async (req, res) => {
     }
 });
 
-router.post('/notification/:notificationId/seen', authenticate, async (req, res) => {
+router.post('/notification-seen/:notificationId', authenticate, async (req, res) => {
     try {
         const { notificationId } = req.params;
         const { seenNewValue } = req.body;
+
+        // Garante que userId seja numérico
+        let userId = req.userId;
+        if (typeof userId !== 'number') {
+            const user = await User.findOne({ where: { username: userId }, attributes: ['id'] });
+            userId = user?.id;
+        }
+        if (!userId) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
         // Busca a notificação e garante que pertence ao usuário autenticado
         const notification = await Notification.findOne({
             where: {
                 id: notificationId,
-                userId: req.userId
+                userId: userId
             }
         });
 
@@ -652,6 +662,31 @@ router.post('/notifications/delete', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Error deleting notifications:', error);
         res.status(500).json({ message: 'Error deleting notifications', error });
+    }
+});
+
+router.get('/notifications-unread-count', authenticate, async (req, res) => {
+    try {
+        let userId = req.userId;
+        if (typeof userId !== 'number') {
+            const user = await User.findOne({ where: { username: userId }, attributes: ['id'] });
+            userId = user?.id;
+        }
+        if (!userId) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const unreadCount = await Notification.count({
+            where: {
+                userId,
+                seen: false
+            }
+        });
+
+        res.status(200).json({ unreadCount });
+    } catch (error) {
+        console.error('Error fetching unread notifications count:', error);
+        res.status(500).json({ message: 'Error fetching unread notifications count', error });
     }
 });
 

@@ -79,6 +79,67 @@ router.get('/user-albums', authenticate, async (req, res) => {
     }
 });
 
+router.get('/external-user-albums/:userId', authenticate, async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // Permite buscar por id numérico ou username
+        let user;
+        if (/^\d+$/.test(userId)) {
+            user = await User.findOne({ where: { id: Number(userId) }, attributes: ['id'] });
+        } else {
+            user = await User.findOne({ where: { username: userId }, attributes: ['id'] });
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const userAlbums = await UserAlbum.findAll({
+            where: { userId: user.id },
+            attributes: ['id', 'albumTemplateId'],
+        });
+
+        const albumTemplateIds = userAlbums.map(album => album.albumTemplateId);
+        const albumTemplates = await AlbumTemplate.findAll({
+            where: { id: albumTemplateIds },
+            attributes: ['id', 'name', 'image', 'tags'],
+        });
+
+        // Para cada álbum do usuário, busca apenas a contagem de stickers e a porcentagem completa
+        const albums = await Promise.all(userAlbums.map(async userAlbum => {
+            const template = albumTemplates.find(t => t.id === userAlbum.albumTemplateId);
+
+            // Busca a quantidade total de stickers e os completos para este álbum
+            const totalStickers = await UserSticker.count({
+                where: { userAlbumId: userAlbum.id }
+            });
+            const completedStickers = await UserSticker.count({
+                where: {
+                    userAlbumId: userAlbum.id,
+                    quantity: { [require('sequelize').Op.gt]: 0 }
+                }
+            });
+            const percentCompleted = totalStickers > 0
+                ? Math.round((completedStickers / totalStickers) * 100)
+                : 0;
+
+            return {
+                userAlbumId: userAlbum.id,
+                albumTemplateId: userAlbum.albumTemplateId,
+                ...template?.toJSON(),
+                totalStickers,
+                percentCompleted
+            };
+        }));
+
+        res.status(200).json(albums);
+    } catch (error) {
+        console.error('Error fetching user albums:', error);
+        res.status(500).json({ message: 'Error fetching user albums', error });
+    }
+});
+
 router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
     try {
         const { userAlbumId } = req.params;
@@ -108,18 +169,70 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
             }]
         });
 
+        // Se o álbum não for do usuário autenticado, buscar os stickers do usuário autenticado para o mesmo template
+        let myStickersMap = {};
+        let externalStickersMap = {};
+        const isExternal = userAlbum.userId !== req.userId;
+
+        if (isExternal) {
+            // Busca o álbum do usuário autenticado para esse template
+            let myUserId = req.userId;
+            if (typeof myUserId !== 'number') {
+                const me = await User.findOne({ where: { username: req.userId }, attributes: ['id'] });
+                myUserId = me?.id;
+            }
+            
+            // Depois use:
+            const myUserAlbum = await UserAlbum.findOne({
+                where: { userId: myUserId, albumTemplateId: userAlbum.albumTemplateId },
+                attributes: ['id']
+            });
+
+            if (myUserAlbum) {
+                // Busca os stickers do usuário autenticado para esse álbum
+                const myStickers = await UserSticker.findAll({
+                    where: { userAlbumId: myUserAlbum.id },
+                    attributes: ['id', 'quantity', 'templateStickerId']
+                });
+                myStickersMap = {};
+                for (const s of myStickers) {
+                    myStickersMap[s.templateStickerId] = s;
+                }
+            }
+
+            // Também cria um map dos stickers do usuário externo para facilitar consulta inversa
+            for (const s of userStickers) {
+                externalStickersMap[s.templateStickerId] = s;
+            }
+        }
+
         // Monta o array stickersList com os dados combinados
-        const stickersList = userStickers.map(userSticker => ({
-            id: userSticker.id,
-            quantity: userSticker.quantity,
-            templateStickerId: userSticker.templateStickerId,
-            // Atributos do TemplateSticker:
-            category: userSticker.TemplateSticker?.category,
-            tags: userSticker.TemplateSticker?.tags,
-            order: userSticker.TemplateSticker?.order,
-            number: userSticker.TemplateSticker?.number,
-            albumTemplateId: userSticker.TemplateSticker?.albumTemplateId
-        }));
+        let stickersList = userStickers.map(userSticker => {
+            const base = {
+                id: userSticker.id,
+                quantity: userSticker.quantity,
+                templateStickerId: userSticker.templateStickerId,
+                category: userSticker.TemplateSticker?.category,
+                tags: userSticker.TemplateSticker?.tags,
+                order: userSticker.TemplateSticker?.order,
+                number: userSticker.TemplateSticker?.number,
+                albumTemplateId: userSticker.TemplateSticker?.albumTemplateId
+            };
+
+            if (isExternal) {
+                // youNeed: eu (autenticado) quantity = 0, externo quantity > 1
+                const mySticker = myStickersMap[userSticker.templateStickerId];
+                base.youNeed = (!mySticker || mySticker.quantity === 0) && userSticker.quantity > 1;
+
+                // youHave: eu (autenticado) quantity > 1, externo quantity = 0
+                base.youHave = (mySticker && mySticker.quantity > 1) && userSticker.quantity === 0;
+            }
+
+            return base;
+        });
+
+        // Ordena SEMPRE pelo atributo 'order'
+        stickersList = stickersList.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
         const totalStickers = stickersList.length;
         const completedStickers = stickersList.filter(s => s.quantity > 0).length;
@@ -148,7 +261,21 @@ router.get('/template-albums', authenticate, async (req, res) => {
         const templateAlbums = await AlbumTemplate.findAll({
             attributes: ['id', 'name', 'image', 'tags'],
         });
-        res.status(200).json(templateAlbums);
+
+        // Para cada álbum, conta quantos stickers existem no template
+        const albumsWithStickersCount = await Promise.all(
+            templateAlbums.map(async album => {
+                const totalStickers = await TemplateSticker.count({
+                    where: { albumTemplateId: album.id }
+                });
+                return {
+                    ...album.toJSON(),
+                    totalStickers
+                };
+            })
+        );
+
+        res.status(200).json(albumsWithStickersCount);
     } catch (error) {
         console.error('Error fetching template albums:', error);
         res.status(500).json({ message: 'Error fetching template albums', error });
@@ -196,6 +323,30 @@ router.post('/add-album/:albumTemplateId', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Error adding album to user:', error);
         res.status(500).json({ message: 'Error adding album to user', error });
+    }
+});
+
+router.post('/user-sticker/batch-update', authenticate, async (req, res) => {
+    try {
+        const { stickersToUpdate } = req.body;
+        if (!Array.isArray(stickersToUpdate) || stickersToUpdate.length === 0) {
+            return res.status(400).json({ message: 'No stickers to update' });
+        }
+
+        // Atualiza cada sticker individualmente
+        await Promise.all(
+            stickersToUpdate.map(async ({ id, quantity }) => {
+                await UserSticker.update(
+                    { quantity },
+                    { where: { id } }
+                );
+            })
+        );
+
+        res.status(200).json({ message: 'Stickers updated successfully' });
+    } catch (error) {
+        console.error('Error updating stickers:', error);
+        res.status(500).json({ message: 'Error updating stickers', error });
     }
 });
 

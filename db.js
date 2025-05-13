@@ -23,13 +23,11 @@ const User = sequelize.define('User', {
     },
     countryState: {
         type: DataTypes.STRING,
-        allowNull: true,
-        unique: false
+        allowNull: true
     },
     city: {
         type: DataTypes.STRING,
-        allowNull: true,
-        unique: false
+        allowNull: true
     },
 });
 
@@ -99,17 +97,42 @@ const Notification = sequelize.define('Notification', {
     seen: {
         type: DataTypes.BOOLEAN,
         defaultValue: false
+    },
+    senderId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'Users', key: 'id' }
     }
 });
 
-const Friendship = sequelize.define('Friendship', {
-    status: {
-        type: DataTypes.ENUM('pending', 'accepted', 'declined'),
+// NOVA TABELA FOLLOW (seguidores)
+const Follow = sequelize.define('Follow', {
+    followerId: {
+        type: DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 'pending'
+        references: { model: 'Users', key: 'id' },
+        onDelete: 'CASCADE'
+    },
+    followingId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: { model: 'Users', key: 'id' },
+        onDelete: 'CASCADE'
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: Sequelize.NOW
     }
+}, {
+    indexes: [
+        {
+            unique: true,
+            fields: ['followerId', 'followingId']
+        }
+    ]
 });
 
+// RELACIONAMENTOS
 User.hasMany(UserAlbum, { foreignKey: 'userId', onDelete: 'CASCADE' });
 UserAlbum.belongsTo(User, { foreignKey: 'userId' });
 
@@ -129,10 +152,23 @@ Message.belongsTo(User, { foreignKey: 'receiverId', as: 'receiver' });
 User.hasMany(Notification, { foreignKey: 'userId', onDelete: 'CASCADE' });
 Notification.belongsTo(User, { foreignKey: 'userId' });
 
-User.belongsToMany(User, { through: Friendship, as: 'Friends', foreignKey: 'userId1', otherKey: 'userId2' });
+// RELACIONAMENTO DE SEGUIDORES
+User.hasMany(Follow, { foreignKey: 'followerId', as: 'following' });
+User.hasMany(Follow, { foreignKey: 'followingId', as: 'followers' });
 
+// SYNC
 sequelize.sync({ alter: true })
     .then(() => console.log('Database & tables created!'))
     .catch(err => console.error('Unable to create database & tables:', err));
 
-module.exports = { User, AlbumTemplate, UserAlbum, TemplateSticker, UserSticker, Message, Notification, Friendship, sequelize };
+module.exports = {
+    sequelize,
+    User,
+    AlbumTemplate,
+    UserAlbum,
+    TemplateSticker,
+    UserSticker,
+    Message,
+    Notification,
+    Follow
+};

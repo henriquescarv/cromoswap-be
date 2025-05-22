@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const http = require('http');
-const { Message, User } = require('./db.js'); // Certifique-se de importar o model Message
+const { Message } = require('./db.js');
 
 const app = express();
 const server = http.createServer(app);

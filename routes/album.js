@@ -143,6 +143,7 @@ router.get('/external-user-albums/:userId', authenticate, async (req, res) => {
 router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
     try {
         const { userAlbumId } = req.params;
+        const { page = 1, maxStickers = 100 } = req.query;
 
         // Busca o UserAlbum
         const userAlbum = await UserAlbum.findOne({
@@ -159,7 +160,7 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
             attributes: ['id', 'name', 'image', 'tags'],
         });
 
-        // Busca os stickers do usuário para este álbum, incluindo dados do TemplateSticker
+        // Busca TODOS os stickers do usuário para este álbum, incluindo dados do TemplateSticker
         const userStickers = await UserSticker.findAll({
             where: { userAlbumId: userAlbum.id },
             attributes: ['id', 'quantity', 'templateStickerId'],
@@ -207,7 +208,7 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
         }
 
         // Monta o array stickersList com os dados combinados
-        let stickersList = userStickers.map(userSticker => {
+        let allStickers = userStickers.map(userSticker => {
             const base = {
                 id: userSticker.id,
                 quantity: userSticker.quantity,
@@ -232,10 +233,88 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
         });
 
         // Ordena SEMPRE pelo atributo 'order'
-        stickersList = stickersList.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        allStickers = allStickers.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-        const totalStickers = stickersList.length;
-        const completedStickers = stickersList.filter(s => s.quantity > 0).length;
+        // PAGINAÇÃO HÍBRIDA: Agrupa por categoria CONTÍNUA respeitando a ordem
+        const groupedByCategory = [];
+        let currentGroup = null;
+        
+        allStickers.forEach(sticker => {
+            const category = sticker.category || 'Sem Categoria';
+            
+            // Se é a primeira vez ou mudou a categoria, inicia um novo grupo
+            if (!currentGroup || currentGroup.category !== category) {
+                currentGroup = {
+                    category: category,
+                    stickers: [sticker],
+                    startOrder: sticker.order,
+                    endOrder: sticker.order
+                };
+                groupedByCategory.push(currentGroup);
+            } else {
+                // Verifica se há uma quebra grande na sequência (gap > 50)
+                const gap = sticker.order - currentGroup.endOrder;
+                if (gap > 50) {
+                    // Cria um novo grupo para a mesma categoria (devido à quebra)
+                    currentGroup = {
+                        category: `${category} (${Math.floor(sticker.order / 100)}xx)`, // Adiciona indicador da faixa
+                        stickers: [sticker],
+                        startOrder: sticker.order,
+                        endOrder: sticker.order
+                    };
+                    groupedByCategory.push(currentGroup);
+                } else {
+                    // Continua no mesmo grupo
+                    currentGroup.stickers.push(sticker);
+                    currentGroup.endOrder = sticker.order;
+                }
+            }
+        });
+
+        // Cria lotes de grupos respeitando o maxStickers
+        const categoryBatches = [];
+        let currentBatch = { categories: [], totalStickers: 0 };
+        
+        groupedByCategory.forEach(group => {
+            const groupStickersCount = group.stickers.length;
+            
+            // Se adicionar este grupo ultrapassar o limite e já tem grupos no lote atual
+            if (currentBatch.totalStickers + groupStickersCount > maxStickers && currentBatch.categories.length > 0) {
+                categoryBatches.push(currentBatch);
+                currentBatch = { categories: [], totalStickers: 0 };
+            }
+            
+            // Adiciona o grupo ao lote atual
+            currentBatch.categories.push({
+                name: group.category,
+                stickers: group.stickers,
+                count: groupStickersCount,
+                orderRange: `${group.startOrder}-${group.endOrder}`
+            });
+            currentBatch.totalStickers += groupStickersCount;
+        });
+        
+        // Adiciona o último lote se não estiver vazio
+        if (currentBatch.categories.length > 0) {
+            categoryBatches.push(currentBatch);
+        }
+
+        // Seleciona a página solicitada
+        const pageNumber = parseInt(page) || 1;
+        const totalBatches = categoryBatches.length;
+        const currentPageIndex = pageNumber - 1;
+        
+        if (currentPageIndex >= totalBatches || currentPageIndex < 0) {
+            return res.status(404).json({ message: 'Page not found' });
+        }
+        
+        const currentBatchData = categoryBatches[currentPageIndex];
+        
+        // Monta a lista final de stickers para esta página
+        const stickersList = currentBatchData.categories.flatMap(cat => cat.stickers);
+        
+        const totalStickers = allStickers.length;
+        const completedStickers = allStickers.filter(s => s.quantity > 0).length;
         const percentCompleted = totalStickers > 0
             ? Math.round((completedStickers / totalStickers) * 100)
             : 0;
@@ -247,7 +326,18 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
             ...template?.toJSON(),
             stickersList,
             totalStickers,
-            percentCompleted
+            percentCompleted,
+            pagination: {
+                currentPage: pageNumber,
+                totalPages: totalBatches,
+                stickersInPage: stickersList.length,
+                maxStickersPerPage: parseInt(maxStickers),
+                categoriesInPage: currentBatchData.categories.map(cat => ({
+                    name: cat.name,
+                    count: cat.count,
+                    orderRange: cat.orderRange
+                }))
+            }
         });
     } catch (error) {
         console.error('Error fetching album details:', error);

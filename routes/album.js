@@ -143,7 +143,7 @@ router.get('/external-user-albums/:userId', authenticate, async (req, res) => {
 router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
     try {
         const { userAlbumId } = req.params;
-        const { page = 1, maxStickers = 100 } = req.query;
+        const { page = 1, maxStickers = 100, ownership, terms } = req.query;
 
         // Busca o UserAlbum
         const userAlbum = await UserAlbum.findOne({
@@ -235,11 +235,43 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
         // Ordena SEMPRE pelo atributo 'order'
         allStickers = allStickers.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
+        // APLICAR FILTROS
+        let filteredStickers = allStickers;
+
+        // Filtro por ownership
+        if (ownership) {
+            switch (ownership) {
+                case 'collected':
+                    filteredStickers = filteredStickers.filter(s => s.quantity > 0);
+                    break;
+                case 'missing':
+                    filteredStickers = filteredStickers.filter(s => s.quantity === 0);
+                    break;
+                case 'duplicate':
+                    filteredStickers = filteredStickers.filter(s => s.quantity > 1);
+                    break;
+            }
+        }
+
+        // Filtro por terms
+        if (terms) {
+            const searchTerm = terms.toLowerCase();
+            filteredStickers = filteredStickers.filter(sticker => {
+                const number = sticker?.number || '';
+                const category = sticker?.category || '';
+                const tags = sticker?.tags || [];
+
+                return number.toString().includes(searchTerm) ||
+                    category.includes(searchTerm) ||
+                    tags.includes(searchTerm);
+            });
+        }
+
         // PAGINAÇÃO HÍBRIDA: Agrupa por categoria CONTÍNUA respeitando a ordem
         const groupedByCategory = [];
         let currentGroup = null;
         
-        allStickers.forEach(sticker => {
+        filteredStickers.forEach(sticker => {
             const category = sticker.category || 'Sem Categoria';
             
             // Se é a primeira vez ou mudou a categoria, inicia um novo grupo
@@ -314,6 +346,7 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
         const stickersList = currentBatchData.categories.flatMap(cat => cat.stickers);
         
         const totalStickers = allStickers.length;
+        const totalFilteredStickers = filteredStickers.length;
         const completedStickers = allStickers.filter(s => s.quantity > 0).length;
         const percentCompleted = totalStickers > 0
             ? Math.round((completedStickers / totalStickers) * 100)
@@ -326,7 +359,12 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
             ...template?.toJSON(),
             stickersList,
             totalStickers,
+            totalFilteredStickers,
             percentCompleted,
+            filters: {
+                ownership: ownership || null,
+                terms: terms || null
+            },
             pagination: {
                 currentPage: pageNumber,
                 totalPages: totalBatches,

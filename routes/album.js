@@ -322,20 +322,55 @@ router.get('/album-details/:userAlbumId', authenticate, async (req, res) => {
     groupedByCategory.forEach(group => {
       const groupStickersCount = group.stickers.length;
 
-      // Se adicionar este grupo ultrapassar o limite e já tem grupos no lote atual
-      if (currentBatch.totalStickers + groupStickersCount > maxStickers && currentBatch.categories.length > 0) {
-        categoryBatches.push(currentBatch);
-        currentBatch = { categories: [], totalStickers: 0 };
-      }
+      // Se o grupo é maior que maxStickers, precisamos dividi-lo
+      if (groupStickersCount > maxStickers) {
+        // Primeiro, finaliza o batch atual se tiver conteúdo
+        if (currentBatch.categories.length > 0) {
+          categoryBatches.push(currentBatch);
+          currentBatch = { categories: [], totalStickers: 0 };
+        }
 
-      // Adiciona o grupo ao lote atual
-      currentBatch.categories.push({
-        name: group.category,
-        stickers: group.stickers,
-        count: groupStickersCount,
-        orderRange: `${group.startOrder}-${group.endOrder}`
-      });
-      currentBatch.totalStickers += groupStickersCount;
+        // Divide a categoria grande em múltiplos batches
+        let remainingStickers = [...group.stickers];
+        let partIndex = 1;
+
+        while (remainingStickers.length > 0) {
+          const chunk = remainingStickers.slice(0, maxStickers);
+          remainingStickers = remainingStickers.slice(maxStickers);
+
+          const chunkStartOrder = chunk[0].order;
+          const chunkEndOrder = chunk[chunk.length - 1].order;
+
+          categoryBatches.push({
+            categories: [{
+              name: remainingStickers.length > 0
+                ? `${group.category} (parte ${partIndex})`
+                : group.category,
+              stickers: chunk,
+              count: chunk.length,
+              orderRange: `${chunkStartOrder}-${chunkEndOrder}`
+            }],
+            totalStickers: chunk.length
+          });
+
+          partIndex++;
+        }
+      } else {
+        // Grupo normal - verifica se cabe no batch atual
+        if (currentBatch.totalStickers + groupStickersCount > maxStickers && currentBatch.categories.length > 0) {
+          categoryBatches.push(currentBatch);
+          currentBatch = { categories: [], totalStickers: 0 };
+        }
+
+        // Adiciona o grupo ao lote atual
+        currentBatch.categories.push({
+          name: group.category,
+          stickers: group.stickers,
+          count: groupStickersCount,
+          orderRange: `${group.startOrder}-${group.endOrder}`
+        });
+        currentBatch.totalStickers += groupStickersCount;
+      }
     });
 
     // Adiciona o último lote se não estiver vazio

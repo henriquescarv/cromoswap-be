@@ -4,9 +4,10 @@ const { User, PasswordReset } = require('../db.js');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Resend } = require('resend');
+require('dotenv').config();
 
-const SECRET_KEY = 'your_secret_key';
-const resend = new Resend('re_WPS9qPdy_BsNzMjqMFTpbCE2T25JrCkC2');
+const SECRET_KEY = process.env.JWT_SECRET;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Verificar se username ou email já existe
 router.post('/check-user-exists', async (req, res) => {

@@ -3,7 +3,8 @@ const router = express.Router();
 const { User, UserAlbum, AlbumTemplate, TemplateSticker, UserSticker } = require('../db.js');
 const jwt = require('jsonwebtoken');
 
-const SECRET_KEY = 'your_secret_key';
+require('dotenv').config();
+const SECRET_KEY = process.env.JWT_SECRET;
 
 // Middleware de autenticação
 const authenticate = (req, res, next) => {

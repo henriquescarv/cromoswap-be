@@ -4,7 +4,8 @@ const { User, UserAlbum, AlbumTemplate, UserSticker, Notification, Follow } = re
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 
-const SECRET_KEY = 'your_secret_key';
+require('dotenv').config();
+const SECRET_KEY = process.env.JWT_SECRET;
 
 // Middleware de autenticação
 const authenticate = (req, res, next) => {

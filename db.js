@@ -1,135 +1,154 @@
 const { Sequelize, DataTypes } = require('sequelize');
 
 const sequelize = new Sequelize('cromoswap-db', 'postgres', 'EuOdeioCocoRalado', {
-    host: 'localhost',
-    dialect: 'postgres',
-    port: 5432,
+  host: 'localhost',
+  dialect: 'postgres',
+  port: 5432,
 });
 
 const User = sequelize.define('User', {
-    username: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true
-    },
-    email: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true
-    },
-    password: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    countryState: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    city: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
+  username: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  countryState: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  city: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
 });
 
 const AlbumTemplate = sequelize.define('AlbumTemplate', {
-    name: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    image: {
-        type: DataTypes.STRING
-    },
-    tags: {
-        type: DataTypes.ARRAY(DataTypes.STRING)
-    }
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  image: {
+    type: DataTypes.STRING
+  },
+  tags: {
+    type: DataTypes.ARRAY(DataTypes.STRING)
+  }
 });
 
 const UserAlbum = sequelize.define('UserAlbum', {});
 
 const TemplateSticker = sequelize.define('TemplateSticker', {
-    order: {
-        type: DataTypes.INTEGER,
-        allowNull: false
-    },
-    number: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    category: {
-        type: DataTypes.STRING
-    },
-    tags: {
-        type: DataTypes.ARRAY(DataTypes.STRING)
-    }
+  order: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  number: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  category: {
+    type: DataTypes.STRING
+  },
+  tags: {
+    type: DataTypes.ARRAY(DataTypes.STRING)
+  }
 });
 
 const UserSticker = sequelize.define('UserSticker', {
-    quantity: {
-        type: DataTypes.INTEGER,
-        defaultValue: 1
-    },
+  quantity: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1
+  },
 });
 
 const Message = sequelize.define('Message', {
-    content: {
-        type: DataTypes.TEXT,
-        allowNull: false
-    },
-    sent_at: {
-        type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW
-    },
-    seen: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
-    }
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  sent_at: {
+    type: DataTypes.DATE,
+    defaultValue: Sequelize.NOW
+  },
+  seen: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
 });
 
 const Notification = sequelize.define('Notification', {
-    type: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    message: {
-        type: DataTypes.TEXT,
-        allowNull: false
-    },
-    seen: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
-    },
-    senderId: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: { model: 'Users', key: 'id' }
-    }
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  message: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  seen: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  senderId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'Users', key: 'id' }
+  }
 });
 
 // NOVA TABELA FOLLOW (seguidores)
 const Follow = sequelize.define('Follow', {
-    followerId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'Users', key: 'id' },
-        onDelete: 'CASCADE'
-    },
-    followingId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'Users', key: 'id' },
-        onDelete: 'CASCADE'
-    },
-    createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW
-    }
+  followerId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'Users', key: 'id' },
+    onDelete: 'CASCADE'
+  },
+  followingId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'Users', key: 'id' },
+    onDelete: 'CASCADE'
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    defaultValue: Sequelize.NOW
+  }
 }, {
-    indexes: [
-        {
-            unique: true,
-            fields: ['followerId', 'followingId']
-        }
-    ]
+  indexes: [
+    {
+      unique: true,
+      fields: ['followerId', 'followingId']
+    }
+  ]
+});
+
+const PasswordReset = sequelize.define('PasswordReset', {
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  code: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  used: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
 });
 
 // RELACIONAMENTOS
@@ -158,17 +177,18 @@ User.hasMany(Follow, { foreignKey: 'followingId', as: 'followers' });
 
 // SYNC
 sequelize.sync({ alter: true })
-    .then(() => console.log('Database & tables created!'))
-    .catch(err => console.error('Unable to create database & tables:', err));
+  .then(() => console.log('Database & tables created!'))
+  .catch(err => console.error('Unable to create database & tables:', err));
 
 module.exports = {
-    sequelize,
-    User,
-    AlbumTemplate,
-    UserAlbum,
-    TemplateSticker,
-    UserSticker,
-    Message,
-    Notification,
-    Follow
+  sequelize,
+  User,
+  AlbumTemplate,
+  UserAlbum,
+  TemplateSticker,
+  UserSticker,
+  Message,
+  Notification,
+  Follow,
+  PasswordReset
 };

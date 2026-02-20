@@ -1,5 +1,5 @@
 ﻿const jwt = require('jsonwebtoken');
-const { Message } = require('../models');
+const { Message, User } = require('../models');
 
 const initializeSocketService = (io, jwtSecret) => {
   io.use((socket, next) => {
@@ -28,8 +28,16 @@ const initializeSocketService = (io, jwtSecret) => {
     socket.on('send_message', async (data) => {
       try {
         const { receiverId, content } = data;
+        const username = socket.userId;
 
-        const senderId = socket.userId;
+        const sender = await User.findOne({ where: { username }, attributes: ['id'] });
+        if (!sender) {
+          console.log('❌ Sender not found:', username);
+          socket.emit('error', { message: 'Sender not found' });
+          return;
+        }
+
+        const senderId = sender.id;
 
         if (!receiverId || !content) {
           socket.emit('error', { message: 'Missing required fields' });
@@ -43,17 +51,19 @@ const initializeSocketService = (io, jwtSecret) => {
           seen: false
         });
 
-        io.to(`user_${receiverId}`).emit('receive_message', {
+        const messageData = {
           id: message.id,
           senderId,
           receiverId,
           content,
           seen: false,
           createdAt: message.createdAt
-        });
+        };
+
+        io.to(`user_${receiverId}`).emit('receive_message', messageData);
+        socket.emit('receive_message', messageData);
       } catch (error) {
-        console.error('Error sending message:', error);
-        socket.emit('error', { message: 'Error sending message' });
+        socket.emit('error', { message: 'Error sending message', details: error.message });
       }
     });
 
@@ -61,7 +71,7 @@ const initializeSocketService = (io, jwtSecret) => {
       try {
         const { messageId } = data;
         if (!messageId) return;
-        
+
         await Message.update({ seen: true }, { where: { id: messageId } });
       } catch (error) {
         console.error('Error marking message as seen:', error);

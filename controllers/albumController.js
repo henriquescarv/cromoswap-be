@@ -7,9 +7,11 @@ exports.getUserAlbums = async (req, res) => {
       where: { username: req.userId },
       attributes: ['id'],
     });
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+
     const userAlbums = await UserAlbum.findAll({
       where: { userId: user.id },
       attributes: ['id', 'albumTemplateId'],
@@ -27,6 +29,7 @@ exports.getUserAlbums = async (req, res) => {
       const totalStickers = await UserSticker.count({
         where: { userAlbumId: userAlbum.id }
       });
+
       const completedStickers = await UserSticker.count({
         where: {
           userAlbumId: userAlbum.id,
@@ -56,8 +59,8 @@ exports.getUserAlbums = async (req, res) => {
 exports.getExternalUserAlbums = async (req, res) => {
   try {
     const { userId } = req.params;
-
     let user;
+
     if (/^\d+$/.test(userId)) {
       user = await User.findOne({ where: { id: Number(userId) }, attributes: ['id'] });
     } else {

@@ -1,4 +1,4 @@
-﻿const { User, UserAlbum, AlbumTemplate, UserSticker, Notification, Follow } = require('../models');
+﻿const { User, UserAlbum, AlbumTemplate, TemplateSticker, UserSticker, Notification, Follow } = require('../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
@@ -29,7 +29,7 @@ exports.getSummary = async (req, res) => {
 
 exports.updateRegion = async (req, res) => {
   const { countryState, city } = req.body;
-  
+
   try {
     const user = await User.findOne({ where: { username: req.userId } });
 
@@ -237,13 +237,94 @@ exports.getUserProfile = async (req, res) => {
     const followers = await Follow.count({ where: { followingId: user.id } });
     const following = await Follow.count({ where: { followerId: user.id } });
 
+    const userAlbumIds = userAlbums.map(a => a.id);
+    const requesterAlbumIds = requesterAlbums.map(a => a.id);
+
+    const userTemplateIds = userAlbums.map(a => a.albumTemplateId);
+    const requesterTemplateIds = requesterAlbums.map(a => a.albumTemplateId);
+    const commonTemplateIds = userTemplateIds.filter(id => requesterTemplateIds.includes(id));
+
+    let youHaveList = [];
+    let youNeedList = [];
+
+    for (const templateId of commonTemplateIds) {
+      const userAlbum = userAlbums.find(a => a.albumTemplateId === templateId);
+      const requesterAlbum = requesterAlbums.find(a => a.albumTemplateId === templateId);
+
+      const [userStickers, requesterStickers] = await Promise.all([
+        UserSticker.findAll({
+          where: { userAlbumId: userAlbum.id },
+          attributes: ['id', 'quantity', 'templateStickerId'],
+          include: [{
+            model: TemplateSticker,
+            attributes: ['id', 'category', 'number', 'order']
+          }]
+        }),
+        UserSticker.findAll({
+          where: { userAlbumId: requesterAlbum.id },
+          attributes: ['id', 'quantity', 'templateStickerId']
+        })
+      ]);
+
+      const requesterStickersMap = {};
+      for (const s of requesterStickers) {
+        requesterStickersMap[s.templateStickerId] = s;
+      }
+
+      const youNeedStickers = [];
+      const youHaveStickers = [];
+
+      for (const userSticker of userStickers) {
+        const requesterSticker = requesterStickersMap[userSticker.templateStickerId];
+        
+        if (userSticker.quantity > 1 && (!requesterSticker || requesterSticker.quantity === 0)) {
+          youNeedStickers.push({
+            id: userSticker.id,
+            number: userSticker.TemplateSticker?.number,
+            category: userSticker.TemplateSticker?.category,
+            order: userSticker.TemplateSticker?.order
+          });
+        }
+        
+        if ((!userSticker || userSticker.quantity === 0) && requesterSticker && requesterSticker.quantity > 1) {
+          youHaveStickers.push({
+            id: userSticker.id,
+            number: userSticker.TemplateSticker?.number,
+            category: userSticker.TemplateSticker?.category,
+            order: userSticker.TemplateSticker?.order
+          });
+        }
+      }
+
+      if (youNeedStickers.length > 0) {
+        youNeedList.push({
+          userAlbumId: userAlbum.id,
+          name: userAlbum.AlbumTemplate?.name,
+          image: userAlbum.AlbumTemplate?.image,
+          stickersList: youNeedStickers.sort((a, b) => (a.order || 0) - (b.order || 0))
+        });
+      }
+
+      if (youHaveStickers.length > 0) {
+        youHaveList.push({
+          userAlbumId: userAlbum.id,
+          name: userAlbum.AlbumTemplate?.name,
+          image: userAlbum.AlbumTemplate?.image,
+          stickersList: youHaveStickers.sort((a, b) => (a.order || 0) - (b.order || 0))
+        });
+      }
+    }
+
+    const youNeedQuantity = youNeedList.reduce((sum, album) => sum + album.stickersList.length, 0);
+    const youHaveQuantity = youHaveList.reduce((sum, album) => sum + album.stickersList.length, 0);
+
     res.status(200).json({
       id: user.id,
       username: user.username,
       albumsListLength: userAlbums.length,
       albums,
-      youHave: { quantity: 0, list: [] }, // Simplified for brevity
-      youNeed: { quantity: 0, list: [] }, // Simplified for brevity
+      youHave: { quantity: youHaveQuantity, list: youHaveList },
+      youNeed: { quantity: youNeedQuantity, list: youNeedList },
       followers,
       following,
       isFollowing,
@@ -258,7 +339,7 @@ exports.followUser = async (req, res) => {
   try {
     const { userId } = req.params;
     let myUserId = req.userId;
-    
+
     if (typeof myUserId !== 'number') {
       const me = await User.findOne({ where: { username: req.userId }, attributes: ['id', 'username'] });
       myUserId = me?.id;
@@ -290,7 +371,7 @@ exports.followUser = async (req, res) => {
         senderId: myUserId
       }
     });
-    
+
     if (!existingNotification) {
       await Notification.create({
         type: 'follow',
@@ -312,7 +393,7 @@ exports.unfollowUser = async (req, res) => {
   try {
     const { userId } = req.params;
     let myUserId = req.userId;
-    
+
     if (typeof myUserId !== 'number') {
       const me = await User.findOne({ where: { username: req.userId }, attributes: ['id'] });
       myUserId = me?.id;
@@ -450,7 +531,7 @@ exports.updateNotificationSeen = async (req, res) => {
       const user = await User.findOne({ where: { username: userId }, attributes: ['id'] });
       userId = user?.id;
     }
-    
+
     if (!userId) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -482,7 +563,7 @@ exports.getNotifications = async (req, res) => {
       const user = await User.findOne({ where: { username: userId }, attributes: ['id'] });
       userId = user?.id;
     }
-    
+
     if (!userId) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -547,7 +628,7 @@ exports.getUnreadNotificationsCount = async (req, res) => {
       const user = await User.findOne({ where: { username: userId }, attributes: ['id'] });
       userId = user?.id;
     }
-    
+
     if (!userId) {
       return res.status(404).json({ message: 'User not found' });
     }

@@ -26,7 +26,7 @@ exports.checkUserExists = async (req, res) => {
 
 exports.register = async (req, res) => {
   const { username, email, password, countryState, city } = req.body;
-  
+
   try {
     const user = await User.findOne({ where: { username } });
     const emailExists = await User.findOne({ where: { email } });
@@ -40,19 +40,19 @@ exports.register = async (req, res) => {
     }
 
     const hashedPassword = bcrypt.hashSync(password, 8);
-    const newUser = await User.create({ 
-      username, 
-      email, 
-      password: hashedPassword, 
-      countryState, 
-      city 
+    const newUser = await User.create({
+      username,
+      email,
+      password: hashedPassword,
+      countryState,
+      city
     });
 
     const token = jwt.sign({ id: newUser.username }, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
-    
-    res.status(201).json({ 
-      message: 'User registered successfully', 
-      token 
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token
     });
   } catch (error) {
     console.error('Error registering user:', error);
@@ -65,19 +65,19 @@ exports.login = async (req, res) => {
 
   try {
     const user = await User.findOne({ where: { username } });
-    
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     const isPasswordValid = bcrypt.compareSync(password, user.password);
-    
+
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid password' });
     }
 
     const token = jwt.sign({ id: user.username }, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
-    
+
     res.json({ message: 'Login successful', token });
   } catch (error) {
     console.error('Error logging in:', error);
@@ -86,9 +86,9 @@ exports.login = async (req, res) => {
 };
 
 exports.protected = (req, res) => {
-  res.status(200).json({ 
-    message: 'Access granted to protected route', 
-    user: req.userId 
+  res.status(200).json({
+    message: 'Access granted to protected route',
+    user: req.userId
   });
 };
 
@@ -97,7 +97,7 @@ exports.forgotPassword = async (req, res) => {
 
   try {
     const user = await User.findOne({ where: { email } });
-    
+
     if (!user) {
       return res.status(404).json({ message: 'Email nÃ£o encontrado' });
     }
@@ -197,7 +197,7 @@ exports.resetPassword = async (req, res) => {
     }
 
     const user = await User.findOne({ where: { email } });
-    
+
     if (!user) {
       return res.status(404).json({ message: 'UsuÃ¡rio nÃ£o encontrado' });
     }

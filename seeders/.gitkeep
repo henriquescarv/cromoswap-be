@@ -1,0 +1,19 @@
+# Seeders
+
+Esta pasta contém os arquivos de seed do Sequelize para popular o banco de dados com dados iniciais ou de teste.
+
+## Como usar
+
+```bash
+# Criar um novo seeder
+npx sequelize-cli seed:generate --name demo-user
+
+# Executar todos os seeders
+npx sequelize-cli db:seed:all
+
+# Desfazer todos os seeders
+npx sequelize-cli db:seed:undo:all
+
+# Desfazer um seeder específico
+npx sequelize-cli db:seed:undo --seed name-of-seed-as-in-data
+```

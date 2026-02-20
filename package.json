@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "sequelize-cli db:migrate",
+    "migrate:undo": "sequelize-cli db:migrate:undo",
+    "migrate:status": "sequelize-cli db:migrate:status",
+    "deploy": "npm run migrate && npm start"
   },
   "keywords": [],
   "author": "Henrique Carvalho",
@@ -16,11 +20,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1",
     "pg-hstore": "^2.3.4",
     "resend": "^6.9.2",
     "sequelize": "^6.37.5",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "sequelize-cli": "^6.6.5"
   }
 }

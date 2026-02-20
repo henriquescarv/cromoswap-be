@@ -276,7 +276,7 @@ exports.getUserProfile = async (req, res) => {
 
       for (const userSticker of userStickers) {
         const requesterSticker = requesterStickersMap[userSticker.templateStickerId];
-        
+
         if (userSticker.quantity > 1 && (!requesterSticker || requesterSticker.quantity === 0)) {
           youNeedStickers.push({
             id: userSticker.id,
@@ -285,7 +285,7 @@ exports.getUserProfile = async (req, res) => {
             order: userSticker.TemplateSticker?.order
           });
         }
-        
+
         if ((!userSticker || userSticker.quantity === 0) && requesterSticker && requesterSticker.quantity > 1) {
           youHaveStickers.push({
             id: userSticker.id,

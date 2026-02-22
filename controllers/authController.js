@@ -49,10 +49,15 @@ exports.register = async (req, res) => {
     });
 
     const token = jwt.sign({ id: newUser.username }, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
+    const refreshToken = jwt.sign({ id: newUser.username }, config.jwt.secret, { expiresIn: config.jwt.refreshExpiresIn });
+
+    newUser.refreshToken = refreshToken;
+    await newUser.save();
 
     res.status(201).json({
       message: 'User registered successfully',
-      token
+      token,
+      refreshToken
     });
   } catch (error) {
     console.error('Error registering user:', error);
@@ -77,8 +82,12 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.username }, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
+    const refreshToken = jwt.sign({ id: user.username }, config.jwt.secret, { expiresIn: config.jwt.refreshExpiresIn });
 
-    res.json({ message: 'Login successful', token });
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.json({ message: 'Login successful', token, refreshToken });
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(400).json({ message: 'Error logging in', error: error.message });
@@ -211,5 +220,33 @@ exports.resetPassword = async (req, res) => {
   } catch (error) {
     console.error('Erro ao resetar senha:', error);
     res.status(500).json({ message: 'Erro ao resetar senha', error: error.message });
+  }
+};
+
+exports.refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: 'Refresh token is required' });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, config.jwt.secret);
+
+    const user = await User.findOne({ where: { username: decoded.id } });
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(403).json({ message: 'Invalid refresh token' });
+    }
+
+    const newToken = jwt.sign({ id: user.username }, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
+
+    res.json({
+      message: 'Token refreshed successfully',
+      token: newToken
+    });
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    return res.status(403).json({ message: 'Invalid or expired refresh token' });
   }
 };

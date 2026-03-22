@@ -1,5 +1,5 @@
 ﻿const jwt = require('jsonwebtoken');
-const { Message, User } = require('../models');
+const { Message } = require('../models');
 
 const initializeSocketService = (io, jwtSecret) => {
   io.use((socket, next) => {
@@ -28,16 +28,7 @@ const initializeSocketService = (io, jwtSecret) => {
     socket.on('send_message', async (data) => {
       try {
         const { receiverId, content } = data;
-        const username = socket.userId;
-
-        const sender = await User.findOne({ where: { username }, attributes: ['id'] });
-        if (!sender) {
-          console.log('❌ Sender not found:', username);
-          socket.emit('error', { message: 'Sender not found' });
-          return;
-        }
-
-        const senderId = sender.id;
+        const senderId = socket.userId;
 
         if (!receiverId || !content) {
           socket.emit('error', { message: 'Missing required fields' });

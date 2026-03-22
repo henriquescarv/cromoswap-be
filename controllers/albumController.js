@@ -1,5 +1,6 @@
 ﻿const { User, UserAlbum, AlbumTemplate, TemplateSticker, UserSticker } = require('../models');
 const { Op } = require('sequelize');
+const { getSignedImageUrl } = require('../services/s3');
 
 exports.getUserAlbums = async (req, res) => {
   try {
@@ -40,10 +41,12 @@ exports.getUserAlbums = async (req, res) => {
         ? Math.round((completedStickers / totalStickers) * 100)
         : 0;
 
+      const templateData = template?.toJSON() || {};
       return {
         userAlbumId: userAlbum.id,
         albumTemplateId: userAlbum.albumTemplateId,
-        ...template?.toJSON(),
+        ...templateData,
+        image: await getSignedImageUrl(templateData.image),
         totalStickers,
         percentCompleted
       };
@@ -98,10 +101,12 @@ exports.getExternalUserAlbums = async (req, res) => {
         ? Math.round((completedStickers / totalStickers) * 100)
         : 0;
 
+      const templateData = template?.toJSON() || {};
       return {
         userAlbumId: userAlbum.id,
         albumTemplateId: userAlbum.albumTemplateId,
-        ...template?.toJSON(),
+        ...templateData,
+        image: await getSignedImageUrl(templateData.image),
         totalStickers,
         percentCompleted
       };
@@ -352,11 +357,15 @@ exports.getAlbumDetails = async (req, res) => {
       ? Math.round((completedStickers / totalStickers) * 100)
       : 0;
 
+    const templateData = template?.toJSON() || {};
+    const signedImage = await getSignedImageUrl(templateData.image);
+
     res.status(200).json({
       id: userAlbum.id,
       albumTemplateId: userAlbum.albumTemplateId,
       userId: userAlbum.userId,
-      ...template?.toJSON(),
+      ...templateData,
+      image: signedImage,
       stickersList,
       totalStickers,
       totalFilteredStickers,
@@ -394,8 +403,10 @@ exports.getTemplateAlbums = async (req, res) => {
         const totalStickers = await TemplateSticker.count({
           where: { albumTemplateId: album.id }
         });
+        const albumData = album.toJSON();
         return {
-          ...album.toJSON(),
+          ...albumData,
+          image: await getSignedImageUrl(albumData.image),
           totalStickers
         };
       })

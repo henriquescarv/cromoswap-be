@@ -8,7 +8,8 @@ const config = {
   host: envConfig.database.host,
   port: envConfig.database.port,
   dialect: envConfig.database.dialect,
-  logging: envConfig.nodeEnv === 'development' ? console.log : false
+  logging: envConfig.nodeEnv === 'development' ? console.log : false,
+    dialectOptions: envConfig.database.dialectOptions
 };
 
 const sequelize = new Sequelize(

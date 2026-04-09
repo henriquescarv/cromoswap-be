@@ -13,7 +13,7 @@ Migrations são arquivos de controle de versão para o banco de dados. Permitem:
 
 ## ⚠️ IMPORTANTE: Sync foi REMOVIDO
 
-**O código `sequelize.sync({ alter: true })` foi COMPLETAMENTE REMOVIDO.**
+**O código `sequelize.sync({ alter: true })` foi COMPLETAMENTE REMOVIDO.** 
 
 ❌ **NUNCA mais use:**
 ```javascript

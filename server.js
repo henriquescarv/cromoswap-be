@@ -27,6 +27,8 @@ app.use('/', userRoutes);
 app.use('/', albumRoutes);
 app.use('/', messageRoutes);
 
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+
 app.use(errorHandler);
 
 initializeSocketService(io, config.jwt.secret);

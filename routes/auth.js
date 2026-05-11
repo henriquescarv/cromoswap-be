@@ -4,6 +4,8 @@ const authController = require('../controllers/authController');
 const authenticate = require('../middlewares/authenticate');
 const validate = require('../middlewares/validator');
 const {
+  sendOTPSchema,
+  verifyOTPSchema,
   checkUserExistsSchema,
   registerSchema,
   loginSchema,
@@ -11,6 +13,9 @@ const {
   validateResetCodeSchema,
   resetPasswordSchema
 } = require('../validators/schemas/auth.schema');
+
+router.post('/send-otp', validate(sendOTPSchema), authController.sendOTP);
+router.post('/verify-otp', validate(verifyOTPSchema), authController.verifyOTP);
 
 router.post('/check-user-exists', validate(checkUserExistsSchema), authController.checkUserExists);
 

@@ -22,6 +22,8 @@ const getSignedImageUrl = async (imageKey) => {
     ? imageKey.split('.amazonaws.com/')[1]
     : imageKey;
 
+  if (!key) return null;
+
   const command = new GetObjectCommand({
     Bucket: env.aws.bucketName,
     Key: key,

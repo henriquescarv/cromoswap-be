@@ -15,7 +15,8 @@ exports.getUserAlbums = async (req, res) => {
 
     const userAlbums = await UserAlbum.findAll({
       where: { userId: user.id },
-      attributes: ['id', 'albumTemplateId'],
+      attributes: ['id', 'albumTemplateId', 'lastAccess'],
+      order: [['lastAccess', 'DESC NULLS LAST']],
     });
 
     const albumTemplateIds = userAlbums.map(album => album.albumTemplateId);
@@ -502,6 +503,7 @@ exports.addAlbum = async (req, res) => {
     const newUserAlbum = await UserAlbum.create({
       userId: user.id,
       albumTemplateId: albumTemplate.id,
+      lastAccess: new Date(),
     });
 
     const templateStickers = await TemplateSticker.findAll({
@@ -582,6 +584,32 @@ exports.batchUpdateStickers = async (req, res) => {
   } catch (error) {
     console.error('Error updating stickers:', error);
     res.status(500).json({ message: 'Error updating stickers', error });
+  }
+};
+
+exports.updateLastAccess = async (req, res) => {
+  try {
+    const { userAlbumId } = req.params;
+
+    const user = await User.findOne({ where: { username: req.userId }, attributes: ['id'] });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userAlbum = await UserAlbum.findOne({
+      where: { id: userAlbumId, userId: user.id },
+      attributes: ['id'],
+    });
+    if (!userAlbum) {
+      return res.status(404).json({ message: 'Album not found or does not belong to user' });
+    }
+
+    await userAlbum.update({ lastAccess: new Date() });
+
+    res.status(200).json({ message: 'Last access updated successfully' });
+  } catch (error) {
+    console.error('Error updating last access:', error);
+    res.status(500).json({ message: 'Error updating last access', error });
   }
 };
 

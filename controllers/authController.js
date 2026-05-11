@@ -1,10 +1,8 @@
-﻿const { User, PasswordReset } = require('../models');
+﻿const { User, PasswordReset, OTPRequest } = require('../models');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { Resend } = require('resend');
+const { generateOTP, sendOTPEmail } = require('../services/sesService');
 const config = require('../config/environment');
-
-const resend = new Resend(config.email.resendApiKey);
 
 exports.checkUserExists = async (req, res) => {
   const { type, value } = req.body;
@@ -24,10 +22,76 @@ exports.checkUserExists = async (req, res) => {
   }
 };
 
-exports.register = async (req, res) => {
-  const { username, email, password } = req.body;
+exports.sendOTP = async (req, res) => {
+  const { email, purpose } = req.body;
 
   try {
+    await OTPRequest.update(
+      { used: true },
+      { where: { email, purpose, used: false } }
+    );
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await OTPRequest.create({ email, otp, purpose, expiresAt, used: false });
+
+    await sendOTPEmail(email, otp, purpose);
+
+    res.status(200).json({ message: 'OTP enviado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao enviar OTP:', error);
+    res.status(500).json({ message: 'Erro ao enviar OTP', error: error.message });
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+  const { email, otp, purpose } = req.body;
+
+  try {
+    const record = await OTPRequest.findOne({
+      where: { email, otp, purpose, used: false },
+      order: [['createdAt', 'DESC']]
+    });
+
+    if (!record) {
+      return res.status(400).json({ message: 'Código inválido' });
+    }
+
+    if (new Date() > record.expiresAt) {
+      return res.status(400).json({ message: 'Código expirado' });
+    }
+
+    await record.update({ used: true });
+
+    const verifiedToken = jwt.sign(
+      { email, purpose, type: 'otp_verified' },
+      config.jwt.secret,
+      { expiresIn: '15m' }
+    );
+
+    res.status(200).json({ message: 'Código válido', verifiedToken });
+  } catch (error) {
+    console.error('Erro ao verificar OTP:', error);
+    res.status(500).json({ message: 'Erro ao verificar OTP', error: error.message });
+  }
+};
+
+exports.register = async (req, res) => {
+  const { username, email, password, verifiedToken } = req.body;
+
+  try {
+    let decoded;
+    try {
+      decoded = jwt.verify(verifiedToken, config.jwt.secret);
+    } catch (e) {
+      return res.status(401).json({ message: 'Token de verificação inválido ou expirado' });
+    }
+
+    if (decoded.type !== 'otp_verified' || decoded.purpose !== 'register' || decoded.email !== email) {
+      return res.status(401).json({ message: 'Token de verificação inválido' });
+    }
+
     const user = await User.findOne({ where: { username } });
     const emailExists = await User.findOne({ where: { email } });
 
@@ -106,51 +170,25 @@ exports.forgotPassword = async (req, res) => {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(404).json({ message: 'Email nÃ£o encontrado' });
+      return res.status(404).json({ message: 'Email não encontrado' });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-    await PasswordReset.update(
+    await OTPRequest.update(
       { used: true },
-      {
-        where: {
-          email,
-          used: false
-        }
-      }
+      { where: { email, purpose: 'reset_password', used: false } }
     );
 
-    await PasswordReset.create({
-      email,
-      code,
-      expiresAt,
-      used: false
-    });
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await resend.emails.send({
-      from: 'noreply@cromoswap.app',
-      to: email,
-      subject: 'CÃ³digo de recuperaÃ§Ã£o de senha - CromoSwap',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>RecuperaÃ§Ã£o de senha</h2>
-          <p>VocÃª solicitou a recuperaÃ§Ã£o de senha da sua conta no CromoSwap.</p>
-          <p>Use o cÃ³digo abaixo para prosseguir:</p>
-          <div style="background: #f4f4f4; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
-            ${code}
-          </div>
-          <p>Este cÃ³digo expira em 15 minutos.</p>
-          <p>Se vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, ignore este email.</p>
-        </div>
-      `
-    });
+    await OTPRequest.create({ email, otp, purpose: 'reset_password', expiresAt, used: false });
 
-    res.status(200).json({ message: 'CÃ³digo enviado para o email' });
+    await sendOTPEmail(email, otp, 'reset_password');
+
+    res.status(200).json({ message: 'Código enviado para o email' });
   } catch (error) {
     console.error('Erro ao enviar email:', error);
-    res.status(500).json({ message: 'Erro ao enviar cÃ³digo', error: error.message });
+    res.status(500).json({ message: 'Erro ao enviar código', error: error.message });
   }
 };
 
@@ -158,61 +196,57 @@ exports.validateResetCode = async (req, res) => {
   const { email, code } = req.body;
 
   try {
-    const passwordReset = await PasswordReset.findOne({
-      where: {
-        email,
-        code,
-        used: false
-      },
+    const record = await OTPRequest.findOne({
+      where: { email, otp: code, purpose: 'reset_password', used: false },
       order: [['createdAt', 'DESC']]
     });
 
-    if (!passwordReset) {
-      return res.status(400).json({ message: 'CÃ³digo invÃ¡lido' });
+    if (!record) {
+      return res.status(400).json({ message: 'Código inválido' });
     }
 
-    if (new Date() > passwordReset.expiresAt) {
-      return res.status(400).json({ message: 'CÃ³digo expirado' });
+    if (new Date() > record.expiresAt) {
+      return res.status(400).json({ message: 'Código expirado' });
     }
 
-    res.status(200).json({ message: 'CÃ³digo vÃ¡lido' });
+    await record.update({ used: true });
+
+    const verifiedToken = jwt.sign(
+      { email, purpose: 'reset_password', type: 'otp_verified' },
+      config.jwt.secret,
+      { expiresIn: '15m' }
+    );
+
+    res.status(200).json({ message: 'Código válido', verifiedToken });
   } catch (error) {
-    console.error('Erro ao validar cÃ³digo:', error);
-    res.status(500).json({ message: 'Erro ao validar cÃ³digo', error: error.message });
+    console.error('Erro ao validar código:', error);
+    res.status(500).json({ message: 'Erro ao validar código', error: error.message });
   }
 };
 
 exports.resetPassword = async (req, res) => {
-  const { email, code, newPassword } = req.body;
+  const { email, verifiedToken, newPassword } = req.body;
 
   try {
-    const passwordReset = await PasswordReset.findOne({
-      where: {
-        email,
-        code,
-        used: false
-      },
-      order: [['createdAt', 'DESC']]
-    });
-
-    if (!passwordReset) {
-      return res.status(400).json({ message: 'CÃ³digo invÃ¡lido' });
+    let decoded;
+    try {
+      decoded = jwt.verify(verifiedToken, config.jwt.secret);
+    } catch (e) {
+      return res.status(401).json({ message: 'Token de verificação inválido ou expirado' });
     }
 
-    if (new Date() > passwordReset.expiresAt) {
-      return res.status(400).json({ message: 'CÃ³digo expirado' });
+    if (decoded.type !== 'otp_verified' || decoded.purpose !== 'reset_password' || decoded.email !== email) {
+      return res.status(401).json({ message: 'Token de verificação inválido' });
     }
 
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(404).json({ message: 'UsuÃ¡rio nÃ£o encontrado' });
+      return res.status(404).json({ message: 'Usuário não encontrado' });
     }
 
     const hashedPassword = bcrypt.hashSync(newPassword, 8);
     await user.update({ password: hashedPassword });
-
-    await passwordReset.update({ used: true });
 
     res.status(200).json({ message: 'Senha alterada com sucesso' });
   } catch (error) {

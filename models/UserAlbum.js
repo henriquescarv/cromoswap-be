@@ -15,6 +15,10 @@ const UserAlbum = sequelize.define('UserAlbum', {
   albumTemplateId: {
     type: DataTypes.INTEGER,
     allowNull: false
+  },
+  lastAccess: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   tableName: 'UserAlbums',

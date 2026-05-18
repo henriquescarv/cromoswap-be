@@ -1,14 +1,8 @@
-const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const { Resend } = require('resend');
 const crypto = require('crypto');
 const config = require('../config/environment');
 
-const ses = new SESClient({
-  region: config.aws.region,
-  credentials: {
-    accessKeyId: config.aws.accessKeyId,
-    secretAccessKey: config.aws.secretAccessKey,
-  },
-});
+const resend = new Resend(config.email.resendApiKey);
 
 exports.generateOTP = () => {
   return crypto.randomInt(100000, 999999).toString();
@@ -18,6 +12,7 @@ exports.sendOTPEmail = async (toEmail, otp, purpose) => {
   const subjects = {
     register: 'Código de verificação — CromoSwap',
     reset_password: 'Redefinição de senha — CromoSwap',
+    change_email: 'Confirmação de novo e-mail — CromoSwap',
   };
 
   const bodies = {
@@ -41,18 +36,22 @@ exports.sendOTPEmail = async (toEmail, otp, purpose) => {
         <p style="color: #888;">Válido por 10 minutos. Se você não solicitou isso, ignore este e-mail.</p>
       </div>
     `,
+    change_email: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2>Confirmação de novo e-mail</h2>
+        <p>Use o código abaixo para confirmar seu novo endereço de e-mail no CromoSwap:</p>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 24px 0;">
+          ${otp}
+        </div>
+        <p style="color: #888;">Válido por 10 minutos. Se você não solicitou isso, ignore este e-mail.</p>
+      </div>
+    `,
   };
 
-  const command = new SendEmailCommand({
-    Source: config.email.fromAddress,
-    Destination: { ToAddresses: [toEmail] },
-    Message: {
-      Subject: { Data: subjects[purpose] || 'Código de verificação — CromoSwap' },
-      Body: {
-        Html: { Data: bodies[purpose] || bodies.register },
-      },
-    },
+  await resend.emails.send({
+    from: config.email.fromAddress,
+    to: toEmail,
+    subject: subjects[purpose] || 'Código de verificação — CromoSwap',
+    html: bodies[purpose] || bodies.register,
   });
-
-  await ses.send(command);
 };

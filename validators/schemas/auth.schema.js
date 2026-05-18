@@ -9,7 +9,7 @@ const sendOTPSchema = Joi.object({
   email: Joi.string().email().required().messages({
     'string.email': 'Email must be a valid email address'
   }),
-  purpose: Joi.string().valid('register', 'reset_password').required()
+  purpose: Joi.string().valid('register', 'reset_password', 'change_email').required()
 });
 
 const verifyOTPSchema = Joi.object({
@@ -19,7 +19,7 @@ const verifyOTPSchema = Joi.object({
   otp: Joi.string().length(6).required().messages({
     'string.length': 'OTP must be exactly 6 digits'
   }),
-  purpose: Joi.string().valid('register', 'reset_password').required()
+  purpose: Joi.string().valid('register', 'reset_password', 'change_email').required()
 });
 
 const registerSchema = Joi.object({

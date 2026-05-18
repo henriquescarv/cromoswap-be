@@ -26,6 +26,13 @@ exports.sendOTP = async (req, res) => {
   const { email, purpose } = req.body;
 
   try {
+    if (purpose === 'change_email') {
+      const emailExists = await User.findOne({ where: { email } });
+      if (emailExists) {
+        return res.status(400).json({ message: 'Email already exists' });
+      }
+    }
+
     await OTPRequest.update(
       { used: true },
       { where: { email, purpose, used: false } }

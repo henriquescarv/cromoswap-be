@@ -466,6 +466,7 @@ exports.getTemplateAlbums = async (req, res) => {
   try {
     const templateAlbums = await AlbumTemplate.findAll({
       attributes: ['id', 'name', 'image', 'tags'],
+      order: [['createdAt', 'DESC']],
     });
 
     const albumsWithStickersCount = await Promise.all(

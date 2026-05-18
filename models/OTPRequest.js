@@ -17,7 +17,7 @@ const OTPRequest = sequelize.define('OTPRequest', {
     allowNull: false,
   },
   purpose: {
-    type: DataTypes.ENUM('register', 'reset_password'),
+    type: DataTypes.ENUM('register', 'reset_password', 'change_email'),
     allowNull: false,
   },
   expiresAt: {

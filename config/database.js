@@ -8,6 +8,7 @@ const config = {
   host: envConfig.database.host,
   port: envConfig.database.port,
   dialect: envConfig.database.dialect,
+  dialectOptions: envConfig.database.dialectOptions,
   logging: envConfig.nodeEnv === 'development' ? console.log : false
 };
 

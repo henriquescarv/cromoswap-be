@@ -1,5 +1,11 @@
 ﻿require('dotenv').config();
 
+// Railway (and other PaaS) provide a DATABASE_URL connection string.
+// Parse it into individual fields so the rest of the config stays uniform.
+const dbUrl = process.env.DATABASE_URL
+  ? new URL(process.env.DATABASE_URL)
+  : null;
+
 module.exports = {
 
   port: process.env.PORT || 3000,
@@ -7,23 +13,18 @@ module.exports = {
 
   jwt: {
     secret: process.env.JWT_SECRET,
-    expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+    expiresIn: process.env.JWT_EXPIRES_IN || '30d',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '60d'
   },
 
   database: {
-    name: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 5432,
+    name: dbUrl ? dbUrl.pathname.slice(1) : process.env.DB_NAME,
+    user: dbUrl ? dbUrl.username : process.env.DB_USER,
+    password: dbUrl ? dbUrl.password : process.env.DB_PASSWORD,
+    host: dbUrl ? dbUrl.hostname : process.env.DB_HOST,
+    port: dbUrl ? Number(dbUrl.port) : (process.env.DB_PORT || 5432),
     dialect: process.env.DB_DIALECT || 'postgres',
-    dialectOptions: {
-      ssl: process.env.DB_SSL === 'true' ? {
-        require: true,
-        rejectUnauthorized: false
-      } : false
-    }
+    dialectOptions: dbUrl ? { ssl: { require: true, rejectUnauthorized: false } } : process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {}
   },
 
   email: {

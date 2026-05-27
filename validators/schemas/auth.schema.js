@@ -5,6 +5,23 @@ const checkUserExistsSchema = Joi.object({
   value: Joi.string().required()
 });
 
+const sendOTPSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.email': 'Email must be a valid email address'
+  }),
+  purpose: Joi.string().valid('register', 'reset_password', 'change_email').required()
+});
+
+const verifyOTPSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.email': 'Email must be a valid email address'
+  }),
+  otp: Joi.string().length(6).required().messages({
+    'string.length': 'OTP must be exactly 6 digits'
+  }),
+  purpose: Joi.string().valid('register', 'reset_password', 'change_email').required()
+});
+
 const registerSchema = Joi.object({
   username: Joi.string()
     .alphanum()
@@ -27,7 +44,8 @@ const registerSchema = Joi.object({
     .required()
     .messages({
       'string.min': 'Password must be at least 8 characters long'
-    })
+    }),
+  verifiedToken: Joi.string().required()
 });
 
 const loginSchema = Joi.object({
@@ -66,12 +84,7 @@ const resetPasswordSchema = Joi.object({
     .messages({
       'string.email': 'Email must be a valid email address'
     }),
-  code: Joi.string()
-    .length(6)
-    .required()
-    .messages({
-      'string.length': 'Code must be exactly 6 characters long'
-    }),
+  verifiedToken: Joi.string().required(),
   newPassword: Joi.string()
     .min(8)
     .required()
@@ -81,6 +94,8 @@ const resetPasswordSchema = Joi.object({
 });
 
 module.exports = {
+  sendOTPSchema,
+  verifyOTPSchema,
   checkUserExistsSchema,
   registerSchema,
   loginSchema,

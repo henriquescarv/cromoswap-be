@@ -9,6 +9,7 @@ const Message = require('./Message');
 const Notification = require('./Notification');
 const Follow = require('./Follow');
 const PasswordReset = require('./PasswordReset');
+const OTPRequest = require('./OTPRequest');
 
 User.hasMany(UserAlbum, { foreignKey: 'userId', onDelete: 'CASCADE' });
 UserAlbum.belongsTo(User, { foreignKey: 'userId' });
@@ -42,5 +43,6 @@ module.exports = {
   Message,
   Notification,
   Follow,
-  PasswordReset
+  PasswordReset,
+  OTPRequest
 };

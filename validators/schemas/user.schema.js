@@ -12,6 +12,7 @@ const updateProfileSchema = Joi.object({
     .messages({
       'string.email': 'Email must be a valid email address'
     }),
+  verifiedToken: Joi.string().optional(),
   profilePicture: Joi.string().optional().allow('')
 }).min(1); // Pelo menos um campo deve ser fornecido
 

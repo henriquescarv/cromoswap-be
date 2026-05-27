@@ -12,6 +12,7 @@ const {
 } = require('../validators/schemas/album.schema');
 
 router.get('/user-albums', authenticate, albumController.getUserAlbums);
+router.put('/user-albums/:userAlbumId/last-access', authenticate, validate(userAlbumIdParamSchema, 'params'), albumController.updateLastAccess);
 router.delete('/user-albums/:userAlbumId', authenticate, validate(userAlbumIdParamSchema, 'params'), albumController.deleteAlbum);
 router.get('/external-user-albums/:userId', authenticate, validate(externalUserIdParamSchema, 'params'), albumController.getExternalUserAlbums);
 router.get('/album-details/:userAlbumId', authenticate, validate(userAlbumIdParamSchema, 'params'), validate(albumDetailsQuerySchema, 'query'), albumController.getAlbumDetails);

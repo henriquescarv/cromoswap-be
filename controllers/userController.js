@@ -1,6 +1,8 @@
 ﻿const { User, UserAlbum, AlbumTemplate, TemplateSticker, UserSticker, Notification, Follow } = require('../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const config = require('../config/environment');
 
 exports.getSummary = async (req, res) => {
   try {
@@ -64,6 +66,19 @@ exports.updateProfile = async (req, res) => {
     }
 
     if (email && email !== user.email) {
+      const { verifiedToken } = req.body;
+      if (!verifiedToken) {
+        return res.status(400).json({ message: 'Token de verificação obrigatório para alterar o e-mail' });
+      }
+      let decoded;
+      try {
+        decoded = jwt.verify(verifiedToken, config.jwt.secret);
+      } catch (e) {
+        return res.status(401).json({ message: 'Token de verificação inválido ou expirado' });
+      }
+      if (decoded.type !== 'otp_verified' || decoded.purpose !== 'change_email' || decoded.email !== email) {
+        return res.status(401).json({ message: 'Token de verificação inválido' });
+      }
       const emailExists = await User.findOne({ where: { email } });
       if (emailExists) {
         return res.status(400).json({ message: 'Email already exists' });

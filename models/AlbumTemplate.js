@@ -9,7 +9,7 @@ const AlbumTemplate = sequelize.define('AlbumTemplate', {
     allowNull: false
   },
   name: {
-    type: DataTypes.STRING,
+    type: DataTypes.JSONB,
     allowNull: false
   },
   image: {

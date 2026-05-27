@@ -18,6 +18,10 @@ COPY --from=builder /app ./
 
 # Usuário não-root para segurança
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
+# Instala curl para o health check
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 USER appuser
 
 # Health check para o ECS monitorar o container

@@ -36,13 +36,6 @@ resource "aws_security_group" "ecs_tasks" {
   description = "Allow traffic from ALB to ECS tasks"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port       = var.app_port
-    to_port         = var.app_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -53,4 +46,14 @@ resource "aws_security_group" "ecs_tasks" {
   tags = {
     Name = "cromoswap-ecs-tasks-sg"
   }
+}
+
+# Regra de ingress separada para permitir dependencies corretas
+resource "aws_security_group_rule" "ecs_alb_ingress" {
+  type                     = "ingress"
+  from_port                = 32768
+  to_port                  = 65535
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb.id
+  security_group_id        = aws_security_group.ecs_tasks.id
 }

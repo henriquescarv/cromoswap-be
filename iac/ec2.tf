@@ -2,7 +2,7 @@
 resource "aws_launch_template" "ecs" {
   name_prefix   = "cromoswap-ecs-"
   image_id      = data.aws_ssm_parameter.ecs_ami.value
-  instance_type = "t3.micro"
+  instance_type = "t4g.micro"
 
   iam_instance_profile {
     arn = aws_iam_instance_profile.ecs_instance.arn
@@ -29,7 +29,7 @@ resource "aws_launch_template" "ecs" {
 
 # AMI otimizada para ECS
 data "aws_ssm_parameter" "ecs_ami" {
-  name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id"
 }
 
 # Auto Scaling Group com 2 instâncias
@@ -37,7 +37,7 @@ resource "aws_autoscaling_group" "ecs" {
   name                = "cromoswap-ecs-asg"
   desired_capacity    = 2
   min_size            = 2
-  max_size            = 2
+  max_size            = 4
   vpc_zone_identifier = var.subnets
 
   launch_template {

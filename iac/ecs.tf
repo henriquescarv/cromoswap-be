@@ -25,7 +25,7 @@ resource "aws_ecs_cluster" "main" {
 # Task Definition
 resource "aws_ecs_task_definition" "app" {
   family                   = "cromoswap"
-  network_mode             = "awsvpc"
+  network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   cpu                      = "384"
@@ -38,7 +38,7 @@ resource "aws_ecs_task_definition" "app" {
 
     portMappings = [{
       containerPort = var.app_port
-      hostPort      = var.app_port
+      hostPort      = 0
       protocol      = "tcp"
     }]
 
@@ -90,11 +90,6 @@ resource "aws_ecs_service" "app" {
   ordered_placement_strategy {
     type  = "spread"
     field = "instanceId"
-  }
-
-  network_configuration {
-    subnets         = var.subnets
-    security_groups = [aws_security_group.ecs_tasks.id]
   }
 
   load_balancer {

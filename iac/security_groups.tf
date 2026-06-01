@@ -48,7 +48,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
-# Regra de ingress separada para permitir dependencies corretas
+# Regra de ingress do ALB para as tasks ECS (portas dinâmicas bridge mode)
 resource "aws_security_group_rule" "ecs_alb_ingress" {
   type                     = "ingress"
   from_port                = 32768
@@ -56,4 +56,15 @@ resource "aws_security_group_rule" "ecs_alb_ingress" {
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.alb.id
   security_group_id        = aws_security_group.ecs_tasks.id
+}
+
+# Regra no SG do RDS liberando acesso das tasks ECS
+resource "aws_security_group_rule" "rds_from_ecs" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = var.rds_sg_id
+  source_security_group_id = aws_security_group.ecs_tasks.id
+  description              = "Allow ECS tasks to access RDS"
 }

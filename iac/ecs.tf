@@ -28,7 +28,7 @@ resource "aws_ecs_task_definition" "app" {
   network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
-  cpu                      = "384"
+  cpu                      = "768"
   memory                   = "400"
 
   container_definitions = jsonencode([{

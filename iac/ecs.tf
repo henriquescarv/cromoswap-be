@@ -1,7 +1,7 @@
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/cromoswap"
-  retention_in_days = 30
+  retention_in_days = 14
 
   tags = {
     Name = "cromoswap-logs"
@@ -105,5 +105,12 @@ resource "aws_ecs_service" "app" {
 
   tags = {
     Name = "cromoswap-service"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      capacity_provider_strategy
+    ]
   }
 }

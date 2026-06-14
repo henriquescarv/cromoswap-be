@@ -24,7 +24,7 @@ module.exports = {
     host: dbUrl ? dbUrl.hostname : process.env.DB_HOST,
     port: dbUrl ? Number(dbUrl.port) : (process.env.DB_PORT || 5432),
     dialect: process.env.DB_DIALECT || 'postgres',
-    dialectOptions: dbUrl ? { ssl: { require: true, rejectUnauthorized: false } } : {}
+    dialectOptions: dbUrl ? { ssl: { require: true, rejectUnauthorized: false } } : process.env.DB_SSL === 'true' ? { ssl: { require: true, rejectUnauthorized: false } } : {}
   },
 
   email: {
